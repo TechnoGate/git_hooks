@@ -1,0 +1,205 @@
+#!/bin/sh
+#
+# vim:ft=sh:fenc=UTF-8:ts=8:sts=8:sw=8:noexpandtab:foldmethod=marker:foldlevel=0:
+#
+# This script should be used as the post-update hook of the mainline repository
+#
+# To enable it, copy it to the hooks folder of the git repository you are pushing to and make it executable (chmod +x post-update)
+
+### Defining some color {{{
+#
+#
+
+export FG_CLEAR="\033[0m"
+
+# Regular ForeGround colors
+export FG_BLACK="\033[0;30m"
+export FG_RED="\033[0;31m"
+export FG_GREEN="\033[0;32m"
+export FG_YELLOW="\033[0;33m"
+export FG_BLUE="\033[0;34m"
+export FG_MAGNETA="\033[0;35m"
+export FG_CYAN="\033[0;36m"
+export FG_WHITE="\033[0;37m"
+
+# Bold ForeGround colors
+export FG_BLACK_B="\033[1;30m"
+export FG_RED_B="\033[1;31m"
+export FG_GREEN_B="\033[1;32m"
+export FG_YELLOW_B="\033[1;33m"
+export FG_BLUE_B="\033[1;34m"
+export FG_MAGNETA_B="\033[1;35m"
+export FG_CYAN_B="\033[1;36m"
+export FG_WHITE_B="\033[1;37m"
+
+# Background colors
+export BG_BLACK="\033[40m"
+export BG_RED="\033[41m"
+export BG_GREEN="\033[42m"
+export BG_YELLOW="\033[43m"
+export BG_BLUE="\033[44m"
+export BG_MAGNETA="\033[45m"
+export BG_CYAN="\033[46m"
+export BG_WHITE="\033[47m"
+
+# GOOD, WARN and ERROR colors
+export GOOD="${FG_GREEN_B}"
+export WARN="${FG_YELLOW_B}"
+export ERROR="${FG_RED_B}"
+
+#
+#
+###}}}
+### Function {{{
+#
+#
+
+# print_info()#{{{
+# print_info(printlevel, print [, newline [, prefixline ] ])
+function print_info() {
+    local NEWLINE='1'
+    local PREFIXLINE='1'
+    local STR=''
+    local PREFIXTEXT=''
+
+    # NOT ENOUGH ARGS
+    if [ "${#}" -lt '2' ] ; then return 1; fi
+
+    # WRONG printlevel
+    if [ "${1}" -lt "0" ]; then
+	print_error 1 "printlevel must be above or equal 0"
+	return 1
+    fi
+
+    # If printlevel is 0, the text must be bolded
+    if [ "${1}" -eq "0" ]; then
+	PREFIXTEXT="${FG_WHITE_B}"
+    fi
+
+    # IF 3 OR MORE ARGS, CHECK IF WE WANT A NEWLINE AFTER PRINT
+    if [ "${#}" -gt '2' ]
+    then
+	if isTrue "${3}"
+	then
+	    NEWLINE='1';
+	else
+	    NEWLINE='0';
+	fi
+    fi
+
+    # IF 4 OR MORE ARGS, CHECK IF WE WANT TO PREFIX WITH A *
+    if [ "${#}" -gt '3' ]
+    then
+	if isTrue "${4}"
+	then
+	    PREFIXLINE='1'
+	else
+	    PREFIXLINE='0'
+	fi
+    fi
+
+    # STRUCTURE printlevel
+    if [ "${1}" -gt "1" ]; then
+	PRINTLEVEL="$(for i in $(seq 1 ${1}); do echo -ne "  "; done)"
+    else
+	PRINTLEVEL=" "
+    fi
+
+    # STRUCTURE DATA TO BE OUTPUT TO SCREEN, AND OUTPUT IT
+    if [ "${PREFIXLINE}" = '1' ]
+    then
+	STR="${GOOD}*${FG_CLEAR}${PRINTLEVEL}${PREFIXTEXT}${2}${FG_CLEAR}"
+    else
+	STR="${PREFIXTEXT}${2}${FG_CLEAR}"
+    fi
+
+    if [ "${NEWLINE}" = '0' ]
+    then
+	echo -ne "${STR}"
+    else
+	echo -e "${STR}"
+    fi
+
+    return 0
+}
+#}}}
+# print_error()#{{{
+function print_error()
+{
+    GOOD=${ERROR} print_info "${@}" >&2
+}
+#}}}
+# print_warning()#{{{
+function print_warning()
+{
+    GOOD=${WARN} print_info "${@}"
+}
+#}}}
+# git_parse_branch()#{{{
+function git_parse_branch()
+{
+	git branch --no-color 2>| /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/'
+}
+#}}}
+# die()#{{{
+function die()
+{
+	if [ "${#}" -ge 1 ]; then
+		echo ${@}
+	fi
+	if [ -f "${LOCK_FILE}" ]; then
+		rm -f "${LOCK_FILE}"
+	fi
+
+	exit
+}
+#}}}
+
+#
+#
+###}}}
+### Environment {{{
+#
+#
+
+# Define the lock file
+LOCK_FILE="/tmp/`dirname $0 | sed 's@/@_@g'`-push.lock"
+
+# Get the current git directory
+CURRENT_DIR="$(pwd)"
+
+# Redmine
+REDMINE_PATH="/home/vhosts/technogate.fr/subdomains/redmine/htdocs"
+
+# Unset the GIT_DIR, work with PATHs instead
+unset GIT_DIR
+
+#
+#
+### }}}
+### Refresh Redmine repositoory cache {{{
+
+# Load RVM if it is installed,
+#  first try to load  user install
+#  then try to load root install, if user install is not there.
+if [ -s "/usr/local/rvm/scripts/rvm" ] ; then
+  source "/usr/local/rvm/scripts/rvm"
+  export rvm_path="/usr/local/rvm"
+  rvm use 1.8.7 &> /dev/null
+fi
+
+print_info 0 ">>> Refresh redmine repository cache."
+${REDMINE_PATH}/script/runner 'Repository.fetch_changesets' -e production > /dev/null 2>&1
+
+#
+#
+### }}}
+### Exiting {{{
+#
+#
+
+exit ${exit_status}
+
+#
+#
+### }}}
