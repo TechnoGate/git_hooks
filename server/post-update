@@ -194,6 +194,15 @@ ${REDMINE_PATH}/script/runner 'Repository.fetch_changesets' -e production > /dev
 #
 #
 ### }}}
+### Updating github mirror {{{
+cd "${CURRENT_DIR}"
+if git remote | grep -q github; then
+  print_info 0 ">>> Pushing changes to github."
+  git push --all github
+fi
+#
+#
+# }}}
 ### Exiting {{{
 #
 #
